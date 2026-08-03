@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>多人計分系統</title>
+    <style>
+        :root {
+            --primary-color: #4f46e5;
+            --bg-color: #f3f4f6;
+            --card-bg: #ffffff;
+            --danger-color: #ef4444;
+            --success-color: #10b981;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            margin: 0;
+            padding: 20px;
+            color: #1f2937;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            color: var(--primary-color);
+            margin-bottom: 20px;
+        }
+
+        /* 新增玩家區塊 */
+        .add-player-box {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            background: var(--card-bg);
+            padding: 15px;
+            border-radius: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 10px 15px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 16px;
+            outline: none;
+        }
+
+        input[type="text"]:focus {
+            border-color: var(--primary-color);
+        }
+
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        .btn-add { background-color: var(--primary-color); color: white; }
+        .btn-reset { background-color: #6b7280; color: white; margin-left: auto; }
+        .btn-danger { background-color: var(--danger-color); color: white; }
+
+        /* 玩家卡片列表 */
+        .player-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .player-card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+        }
+
+        .player-name {
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .player-score {
+            font-size: 2.5rem;
+            font-weight: 800;
+            color: var(--primary-color);
+            margin: 10px 0;
+        }
+
+        .score-controls {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: center;
+            width: 100%;
+        }
+
+        .btn-score {
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .btn-plus { background-color: #e0e7ff; color: var(--primary-color); }
+        .btn-minus { background-color: #fee2e2; color: var(--danger-color); }
+
+        .btn-delete {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: none;
+            border: none;
+            color: #9ca3af;
+            font-size: 18px;
+            cursor: pointer;
+        }
+
+        /* 排行榜與歷史紀錄區塊 */
+        .dashboard {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 600px) {
+            .dashboard { grid-template-columns: 1fr; }
+        }
+
+        .panel {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .panel h2 {
+            font-size: 1.1rem;
+            margin-top: 0;
+            border-bottom: 2px solid var(--bg-color);
+            padding-bottom: 8px;
+        }
+
+        ol, ul { padding-left: 20px; margin: 0; }
+        li { margin-bottom: 8px; }
+        
+        .history-list {
+            max-height: 150px;
+            overflow-y: auto;
+            font-size: 0.9rem;
+            color: #4b5563;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🏆 多人計分系統</h1>
+
+    <!-- 輸入區 -->
+    <div class="add-player-box">
+        <input type="text" id="playerNameInput" placeholder="輸入玩家名稱..." onkeypress="handleKeyPress(event)">
+        <button class="btn-add" onclick="addPlayer()">新增玩家</button>
+        <button class="btn-reset" onclick="resetAllScores()">分數歸零</button>
+    </div>
+
+    <!-- 玩家卡片列表 -->
+    <div class="player-grid" id="playerGrid"></div>
+
+    <!-- 排行榜與紀錄 -->
+    <div class="dashboard">
+        <div class="panel">
+            <h2>👑 即時排行榜</h2>
+            <ol id="leaderboard"></ol>
+        </div>
+        <div class="panel">
+            <h2>📜 近期變動紀錄</h2>
+            <ul id="historyList" class="history-list"></ul>
+        </div>
+    </div>
+</div>
+
+<script>
+    let players = JSON.parse(localStorage.getItem('scoreboard_players')) || [
+        { id: 1, name: "玩家 1", score: 0 },
+        { id: 2, name: "玩家 2", score: 0 }
+    ];
+    let historyLogs = [];
+
+    // 初始化渲染
+    render();
+
+    function saveData() {
+        localStorage.setItem('scoreboard_players', JSON.stringify(players));
+    }
+
+    function addPlayer() {
+        const input = document.getElementById('playerNameInput');
+        const name = input.value.trim();
+        if (!name) return;
+
+        const newPlayer = {
+            id: Date.now(),
+            name: name,
+            score: 0
+        };
+
+        players.push(newPlayer);
+        input.value = '';
+        addLog(`新增了玩家【${name}】`);
+        render();
+    }
+
+    function handleKeyPress(e) {
+        if (e.key === 'Enter') addPlayer();
+    }
+
+    function changeScore(id, delta) {
+        const player = players.find(p => p.id === id);
+        if (player) {
+            player.score += delta;
+            const sign = delta > 0 ? `+${delta}` : `${delta}`;
+            addLog(`【${player.name}】分數 ${sign} (目前: ${player.score})`);
+            render();
+        }
+    }
+
+    function deletePlayer(id) {
+        const player = players.find(p => p.id === id);
+        if (confirm(`確定要刪除 ${player.name} 嗎？`)) {
+            players = players.filter(p => p.id !== id);
+            addLog(`刪除了玩家【${player.name}】`);
+            render();
+        }
+    }
+
+    function resetAllScores() {
+        if (confirm("確定要將所有玩家的分數歸零嗎？")) {
+            players.forEach(p => p.score = 0);
+            addLog("清空了所有玩家的分數");
+            render();
+        }
+    }
+
+    function addLog(text) {
+        const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        historyLogs.unshift(`[${time}] ${text}`);
+        if (historyLogs.length > 20) historyLogs.pop(); // 只保留前20條
+    }
+
+    function render() {
+        saveData();
+        renderCards();
+        renderLeaderboard();
+        renderHistory();
+    }
+
+    function renderCards() {
+        const grid = document.getElementById('playerGrid');
+        grid.innerHTML = '';
+
+        players.forEach(player => {
+            const card = document.createElement('div');
+            card.className = 'player-card';
+            card.innerHTML = `
+                <button class="btn-delete" onclick="deletePlayer(${player.id})">×</button>
+                <div class="player-name">${escapeHtml(player.name)}</div>
+                <div class="player-score">${player.score}</div>
+                <div class="score-controls">
+                    <button class="btn-score btn-minus" onclick="changeScore(${player.id}, -5)">-5</button>
+                    <button class="btn-score btn-minus" onclick="changeScore(${player.id}, -1)">-1</button>
+                    <button class="btn-score btn-plus" onclick="changeScore(${player.id}, 1)">+1</button>
+                    <button class="btn-score btn-plus" onclick="changeScore(${player.id}, 5)">+5</button>
+                </div>
+            `;
+            grid.appendChild(card);
+        });
+    }
+
+    function renderLeaderboard() {
+        const leaderboard = document.getElementById('leaderboard');
+        leaderboard.innerHTML = '';
+        
+        // 複製一份陣列來排序，避免改到原始順序
+        const sorted = [...players].sort((a, b) => b.score - a.score);
+
+        sorted.forEach(player => {
+            const li = document.createElement('li');
+            li.innerHTML = `<strong>${escapeHtml(player.name)}</strong>: ${player.score} 分`;
+            leaderboard.appendChild(li);
+        });
+    }
+
+    function renderHistory() {
+        const historyList = document.getElementById('historyList');
+        historyList.innerHTML = historyLogs.map(log => `<li>${escapeHtml(log)}</li>`).join('');
+    }
+
+    function escapeHtml(str) {
+        return str.replace(/[&<>"']/g, function(m) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m];
+        });
+    }
+</script>
+
+</body>
+</html>
